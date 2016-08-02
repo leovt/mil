@@ -55,17 +55,14 @@ def translate(ast, arguments):
             code = lhs + rhs + [(operation,)]
         elif node[0] == 'call':
             function = names[node[1][2]]
-            print(function[1], node[2])
             if len(node[2]) != len(function[1]):
                 raise Exception('number of arguments wrong')
             code = []
             for arg, extype in zip(node[2], function[1]):
-                print(arg, extype)
                 acode, type = trans_expr(arg)
                 if type != extype:
                     raise Exception('wrong type of argument')
                 code.extend(acode)
-            print(function)
             code.append(('call', node[1][2]))
             type = function[2]
         else:
@@ -88,7 +85,6 @@ def translate(ast, arguments):
                 emit('label', else_label)
             
         elif node[0] == 'fn':
-            pprint(node[2])
             arguments = [(nnode[2], tnode[2]) for (nnode, tnode) in node[2]]
             function = translate(node[3], arguments)
             names[node[1][2]] = ('function', 
@@ -106,7 +102,6 @@ def translate(ast, arguments):
             if node[1][1][0] == 'operator' and node[1][1][1][2] == '=':
                 lhs_node = node[1][1][2]
                 rhs_node = node[1][1][3]
-                print('assign')
                 code, type = trans_expr(rhs_node)
                 if lhs_node[0] != 'identifier':
                     raise Exception('can only assign to identifiers')
