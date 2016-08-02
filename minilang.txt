@@ -1,0 +1,27 @@
+Types
+-----
+
+int - arbitrary length integer
+str - string of unicode chars
+
+int: + - * / %
+str: +
+
+later:
+list(T)
+
+
+Functions
+---------
+
+def name(a:int, b:str):int
+	a
+	b
+	return a
+
+Flow Control
+------------
+
+loop / continue / break
+return
+if / elif / else
