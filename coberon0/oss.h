@@ -1,6 +1,9 @@
 #ifndef OSS_H
 #define OSS_H
 
+#include <stdbool.h>
+#include <stdio.h>
+
 #define ID_LENGTH 16
 
 typedef enum _symbol {
@@ -13,8 +16,11 @@ typedef enum _symbol {
   semicolon, end, else_, elsif, 
   if_, while_, 
   array, record,
-  const_, type, var, procedure, begin, module, eof
+  const_, type, var, procedure, begin, module, eof,
+  number_of_symbols
 } symbol;
+
+extern const char* symbol_name[number_of_symbols];
 
 typedef char Ident[ID_LENGTH];
 
@@ -24,6 +30,6 @@ bool error;
   
 void Mark(char *msg);
 symbol Get(void);
-void Init(char* T, int pos);
+void Init(FILE* r);
 
 #endif

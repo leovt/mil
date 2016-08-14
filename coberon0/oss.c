@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <limits.h>
+#include <assert.h>
 
 #include "oss.h"
 
@@ -55,6 +56,19 @@ keyTab[] = {
 };
 static const int nkw=sizeof(keyTab)/sizeof(keyTab[0]);
 
+const char* symbol_name[number_of_symbols] = {
+  "null",
+  "times", "div", "mod", "and", "plus", "minus", "or",
+  "eql", "neq", "lss", "leq", "gtr", "geq",
+  "period", "comma", "colon", "rparen", "rbrak",
+  "of", "then", "do",
+  "lparen", "lbrak", "not", "becomes", "number", "ident",
+  "semicolon", "end", "else", "elsif",
+  "if", "while", 
+  "array", "record",
+  "const", "type", "var", "procedure", "begin", "module", "eof"};
+
+
 void Mark(char* msg){
   int p = ftell(reader) - 1;
   if(p > errpos){
@@ -81,6 +95,7 @@ static void scan_ident(void){
 }
 
 static void scan_number(void){
+  val = 0;
   do {
     if (val <= (INT_MAX - (ch - '0')) / 10){
       val = 10*val + (ch - '0');
@@ -89,6 +104,7 @@ static void scan_number(void){
       Mark("number too large");
       val = 0;
     }
+    ch = fgetc(reader);
   } while(isdigit(ch));
 }
 
@@ -155,3 +171,7 @@ symbol Get(void){
   return null;
 }
 
+void Init(FILE* r){
+  assert(0 == strncmp(symbol_name[eof], "eof", 4));
+  reader = r;
+}
