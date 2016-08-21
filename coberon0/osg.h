@@ -55,6 +55,7 @@ typedef struct _TypeDesc {
 
 extern Type intType;
 extern Type boolType;
+extern int pc;
 
 extern Item MakeItem(Object);
 extern Item MakeConstItem(Type, int);
@@ -63,6 +64,16 @@ extern void Index(Item, Item);
 extern void Field(Item, Object);
 extern void Op1(symbol, Item);
 extern void Op2(symbol, Item, Item);
+extern void Relation(symbol, Item, Item);
+extern void Parameter(Item, Type, Class);
+extern void Store(Item, Item);
+extern void Call(Item);
+extern void IOCall(Item, Item);
+extern void TestBool(Item);
 
 
+
+extern void FJump(int*);
+extern void BJump(int);
+extern void FixLink(int);
 #endif

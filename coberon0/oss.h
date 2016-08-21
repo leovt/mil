@@ -28,7 +28,7 @@ int val;
 Ident id;
 bool error;
   
-void Mark(char *msg);
+void Mark(const char *msg);
 symbol Get(void);
 void Init(FILE* r);
 

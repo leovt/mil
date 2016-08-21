@@ -69,7 +69,7 @@ const char* symbol_name[number_of_symbols] = {
   "const", "type", "var", "procedure", "begin", "module", "eof"};
 
 
-void Mark(char* msg){
+void Mark(const char* msg){
   int p = ftell(reader) - 1;
   if(p > errpos){
     fprintf(stderr, "  pos %d %s\n", p, msg);
