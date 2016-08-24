@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <stdio.h>
 
 typedef struct IntList IntList;
@@ -49,7 +50,7 @@ struct LexerState{
   } state;
 };
 
-enum TokenType {
+typedef enum TokenType {
   TK_ERROR,
   TK_NEWLINE,
   TK_INDENT,
@@ -58,18 +59,73 @@ enum TokenType {
   TK_COMMENT,
   TK_STRING,
   TK_IDENTIFIER,
-  TK_KW_DEF,
-  TK_KW_LOOP,
-  TK_KW_BREAK,
-  TK_KW_CONTINUE,
-  TK_KW_IF,
-  TK_KW_ELIF,
-  TK_KW_ELSE,
-  TK_KW_RETURN
+  TK_DEF,
+  TK_LOOP,
+  TK_BREAK,
+  TK_CONTINUE,
+  TK_IF,
+  TK_ELIF,
+  TK_ELSE,
+  TK_RETURN,
+  TK_PLUS,
+  TK_MINUS,
+  TK_TIMES,
+  TK_DIV,
+  TK_MOD,
+  TK_ASSIGN,
+  TK_EQUAL,
+  TK_COLON,
+  TK_DOT,
+  TK_LPAREN,
+  TK_RPAREN
+} TokenType;
+
+static struct {
+  char word[10];
+  TokenType type;
+} keywords[] = {
+  {"def", TK_DEF},
+  {"loop", TK_LOOP},
+  {"break", TK_BREAK},
+  {"continue", TK_CONTINUE},
+  {"if", TK_IF},
+  {"elif", TK_ELIF},
+  {"else", TK_ELSE},
+  {"return", TK_RETURN},
+};
+
+static const char* TokenNames[] = {
+  "TK_ERROR",
+  "TK_NEWLINE",
+  "TK_INDENT",
+  "TK_DEDENT",
+  "TK_NUMBER",
+  "TK_COMMENT",
+  "TK_STRING",
+  "TK_IDENTIFIER",
+  "TK_DEF",
+  "TK_LOOP",
+  "TK_BREAK",
+  "TK_CONTINUE",
+  "TK_IF",
+  "TK_ELIF",
+  "TK_ELSE",
+  "TK_RETURN",
+  "TK_PLUS",
+  "TK_MINUS",
+  "TK_TIMES",
+  "TK_DIV",
+  "TK_MOD",
+  "TK_ASSIGN",
+  "TK_EQUAL",
+  "TK_COLON",
+  "TK_PERIOD",
+  "TK_LPAREN",
+  "TK_RPAREN"
 };
 
 struct Token{
-  enum TokenType type;
+  TokenType type;
   int pos;
   char* content;
 };
@@ -80,6 +136,7 @@ struct TokenList{
 };
 
 char ls_current(const LexerState *ls){
+  //printf("current is %d: %c\n", ls->pos, ls->src[ls->pos]);
   return ls->src[ls->pos];
 }
 
@@ -113,7 +170,8 @@ void ls_initialize(LexerState* ls, const char* src){
   ls->state = ST_BEGIN_OF_LINE;
 }
 
-void ls_emit(LexerState *ls, Token tok){
+
+void ls_emit_token(LexerState *ls, Token tok){
   TokenList *node = malloc(sizeof(TokenList));
   node->value = tok;
   node->next = 0;
@@ -128,6 +186,14 @@ void ls_emit(LexerState *ls, Token tok){
 }
 
 
+void ls_emit(LexerState *ls, TokenType toktyp){
+  Token tok = {.type = toktyp, .pos = ls->pos, .content = 0};
+  ls_emit_token(ls, tok);
+}
+
+
+
+
 void begin_of_line(LexerState *ls){
   int indent = 0;
   while(ls_consume(ls, " ")){
@@ -135,15 +201,151 @@ void begin_of_line(LexerState *ls){
   }
   if (indent > ls->indentations->value){
     ls->indentations = push(ls->indentations, indent);
-    ls->state = ST_MAIN_LINE;
-    ls_emit(ls, (Token){TK_INDENT, ls->pos, 0});
+    ls_emit(ls, TK_INDENT);
   }
   while (indent < ls->indentations->value){
     ls->indentations = pop(ls->indentations);
-    ls_emit(ls, (Token){TK_DEDENT, ls->pos, 0});
+    ls_emit(ls, TK_DEDENT);
   }
   ls->state = ST_MAIN_LINE;
 }
+
+void comment(LexerState *ls){
+  while(ls_consume_exclude(ls, "\n")){};
+  ls_consume(ls, "\n");
+  ls->state = ST_BEGIN_OF_LINE;
+}
+
+void string(LexerState *ls){
+  int start = ls->pos;
+  int length = 0;
+  ls_consume(ls, "\"");
+  while(ls_consume_exclude(ls, "\"\n")){
+    length += 1;
+  }
+  ls_consume(ls, "\"");
+  Token tok = {TK_STRING, start, malloc(length+1)};
+  memcpy(tok.content, ls->src+start+1, length);
+  tok.content[length] = 0;
+  ls_emit_token(ls, tok);
+  ls->state = ST_MAIN_LINE;
+}
+
+void main_line(LexerState *ls){
+  char cur = ls_current(ls);
+  switch(cur){
+  case ' ':
+    ls->pos += 1;
+    break;
+  case '#':
+    ls->state = ST_COMMENT;
+    break;
+  case '\"':
+    ls->state = ST_STRING;
+    break;
+  case '+':
+    ls_emit(ls, TK_PLUS);
+    ls->pos += 1;
+    break;
+  case '-':
+    ls_emit(ls, TK_MINUS);
+    ls->pos += 1;
+    break;
+  case '*':
+    ls_emit(ls, TK_TIMES);
+    ls->pos += 1;
+    break;
+  case '/':
+    ls_emit(ls, TK_DIV);
+    ls->pos += 1;
+    break;
+  case '%':
+    ls_emit(ls, TK_MOD);
+    ls->pos += 1;
+    break;
+  case '\n':
+    ls_emit(ls, TK_NEWLINE);
+    ls->pos += 1;
+    ls->state = ST_BEGIN_OF_LINE;
+    break;
+  case ':':
+    ls_emit(ls, TK_COLON);
+    ls->pos += 1;
+    break;
+  case '(':
+    ls_emit(ls, TK_LPAREN);
+    ls->pos += 1;
+    break;
+  case ')':
+    ls_emit(ls, TK_RPAREN);
+    ls->pos += 1;
+    break;
+  case '=':
+    ls->pos += 1;
+    if(ls_current(ls) == '='){
+      ls->pos += 1;
+      ls_emit(ls, TK_EQUAL);
+    }
+    else{
+      ls_emit(ls, TK_ASSIGN);      
+    }
+    break;
+  default:
+    if (isalpha(cur) || cur == '_'){
+      ls->state = ST_IDENTIFIER;
+    }
+    else if (isdigit(cur)){
+      ls->state = ST_NUMBER;
+    }
+    else {
+      fprintf(stderr, "illegal character \'%c\' 0x%02x\n", cur, cur);
+      ls->pos += 1;
+      ls_emit(ls, TK_ERROR);
+    }
+  }
+}
+
+void identifier(LexerState *ls){
+  Token tok = {TK_IDENTIFIER, ls->pos, 0};
+  unsigned length = 0;
+  while(isalnum(ls->src[ls->pos]) || ls->src[ls->pos] == '_'){
+    length += 1;
+    ls->pos += 1;
+  }
+
+  if(length<sizeof(keywords[0].word)){
+    for (unsigned i = 0; i<sizeof(keywords)/sizeof(keywords[0]); i+=1){
+      if (!strncmp(ls->src+tok.pos, keywords[i].word, length)){
+	tok.type = keywords[i].type;
+	break;
+      }
+    }
+  }
+
+  if (tok.type == TK_IDENTIFIER) {
+    tok.content = malloc(length+1);
+    memcpy(tok.content, ls->src+tok.pos, length);
+    tok.content[length] = 0;  
+  }
+
+  ls_emit_token(ls, tok);
+  ls->state = ST_MAIN_LINE;  
+}
+
+void number(LexerState *ls){
+  int start = ls->pos;
+  int length = 0;
+  while(isdigit(ls->src[ls->pos])){
+    length += 1;
+    ls->pos += 1;
+   }
+  Token tok = {TK_NUMBER, start, malloc(length+1)};
+  memcpy(tok.content, ls->src+start, length);
+  tok.content[length] = 0;
+  ls_emit_token(ls, tok);
+  ls->state = ST_MAIN_LINE;
+}
+
 
 void lexer(LexerState *ls){
   while (ls_current(ls)){
@@ -152,14 +354,19 @@ void lexer(LexerState *ls){
       begin_of_line(ls);
       break;
     case ST_MAIN_LINE:
+      main_line(ls);
       break;
     case ST_IDENTIFIER:
+      identifier(ls);
       break;
     case ST_NUMBER:
+      number(ls);
       break;
     case ST_COMMENT:
+      comment(ls);
       break;
     case ST_STRING:
+      string(ls);
       break;
     default:
       exit(EXIT_FAILURE);
@@ -187,7 +394,7 @@ const char* read(char* filename){
   return buffer;
 }
 
-
+#ifdef LEXER_MAIN
 int main(int argc, char** argv){
   if(argc != 2){
     if(argc){
@@ -206,9 +413,18 @@ int main(int argc, char** argv){
     TokenList *tl = ls.tok_head;
     while(tl){
       Token* tok=&(tl->value);
-      printf("%d: %d, %s\n", tok->type, tok->pos, tok->content);
+      if (tok->content) {
+      printf("Token{type = %s, pos = %d, content = \"%s\"}\n",
+	     TokenNames[tok->type], tok->pos, tok->content);
+      }
+      else{
+      printf("Token{type = %s, pos = %d}\n",
+	     TokenNames[tok->type], tok->pos);
+      }
+      tl = tl->next;
     }
   }
   return EXIT_SUCCESS;
   
 }
+#endif
