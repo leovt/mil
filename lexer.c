@@ -37,7 +37,7 @@ struct LexerState{
   const char* src;
   int pos;
   IntList *indentations;
-  IntList *parens;
+  int open_parens;
   TokenList *tok_head;
   TokenList *tok_tail;
   enum {
@@ -164,7 +164,7 @@ void ls_initialize(LexerState* ls, const char* src){
   ls->src = src;
   ls->pos = 0;
   ls->indentations = push(0, 0);
-  ls->parens = 0;
+  ls->open_parens = 0;
   ls->tok_head = 0;
   ls->tok_tail = 0;
   ls->state = ST_BEGIN_OF_LINE;
@@ -186,12 +186,10 @@ void ls_emit_token(LexerState *ls, Token tok){
 }
 
 
-void ls_emit(LexerState *ls, TokenType toktyp){
+void ls_emit_simple(LexerState *ls, TokenType toktyp){
   Token tok = {.type = toktyp, .pos = ls->pos, .content = 0};
   ls_emit_token(ls, tok);
 }
-
-
 
 
 void begin_of_line(LexerState *ls){
@@ -199,13 +197,16 @@ void begin_of_line(LexerState *ls){
   while(ls_consume(ls, " ")){
     indent += 1;
   }
+  if (ls_consume(ls, "\n")){
+    return;
+  }
   if (indent > ls->indentations->value){
     ls->indentations = push(ls->indentations, indent);
-    ls_emit(ls, TK_INDENT);
+    ls_emit_simple(ls, TK_INDENT);
   }
   while (indent < ls->indentations->value){
     ls->indentations = pop(ls->indentations);
-    ls_emit(ls, TK_DEDENT);
+    ls_emit_simple(ls, TK_DEDENT);
   }
   ls->state = ST_MAIN_LINE;
 }
@@ -244,50 +245,54 @@ void main_line(LexerState *ls){
     ls->state = ST_STRING;
     break;
   case '+':
-    ls_emit(ls, TK_PLUS);
+    ls_emit_simple(ls, TK_PLUS);
     ls->pos += 1;
     break;
   case '-':
-    ls_emit(ls, TK_MINUS);
+    ls_emit_simple(ls, TK_MINUS);
     ls->pos += 1;
     break;
   case '*':
-    ls_emit(ls, TK_TIMES);
+    ls_emit_simple(ls, TK_TIMES);
     ls->pos += 1;
     break;
   case '/':
-    ls_emit(ls, TK_DIV);
+    ls_emit_simple(ls, TK_DIV);
     ls->pos += 1;
     break;
   case '%':
-    ls_emit(ls, TK_MOD);
+    ls_emit_simple(ls, TK_MOD);
     ls->pos += 1;
     break;
   case '\n':
-    ls_emit(ls, TK_NEWLINE);
     ls->pos += 1;
-    ls->state = ST_BEGIN_OF_LINE;
+    if (!ls->open_parens) {
+      ls_emit_simple(ls, TK_NEWLINE);
+      ls->state = ST_BEGIN_OF_LINE;
+    }
     break;
   case ':':
-    ls_emit(ls, TK_COLON);
+    ls_emit_simple(ls, TK_COLON);
     ls->pos += 1;
     break;
   case '(':
-    ls_emit(ls, TK_LPAREN);
+    ls_emit_simple(ls, TK_LPAREN);
+    ls->open_parens += 1;
     ls->pos += 1;
     break;
   case ')':
-    ls_emit(ls, TK_RPAREN);
+    ls_emit_simple(ls, TK_RPAREN);
+    ls->open_parens -= 1;
     ls->pos += 1;
     break;
   case '=':
     ls->pos += 1;
     if(ls_current(ls) == '='){
       ls->pos += 1;
-      ls_emit(ls, TK_EQUAL);
+      ls_emit_simple(ls, TK_EQUAL);
     }
     else{
-      ls_emit(ls, TK_ASSIGN);      
+      ls_emit_simple(ls, TK_ASSIGN);      
     }
     break;
   default:
@@ -300,7 +305,7 @@ void main_line(LexerState *ls){
     else {
       fprintf(stderr, "illegal character \'%c\' 0x%02x\n", cur, cur);
       ls->pos += 1;
-      ls_emit(ls, TK_ERROR);
+      ls_emit_simple(ls, TK_ERROR);
     }
   }
 }
