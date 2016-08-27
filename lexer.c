@@ -7,7 +7,6 @@
 typedef struct IntList IntList;
 typedef struct LexerState LexerState;
 typedef struct Token Token;
-typedef struct TokenList TokenList;
 
 struct IntList{
   int value;
@@ -39,8 +38,6 @@ struct LexerState{
   IntList *indentations;
   int indent;
   int open_parens;
-  TokenList *tok_head;
-  TokenList *tok_tail;
   enum {
     ST_BEGIN_OF_LINE,
     ST_HANDLE_DEDENT,
@@ -80,7 +77,7 @@ typedef enum TokenType {
   TK_EOF,
 } TokenType;
 
-static struct {
+static const struct {
   char word[10];
   TokenType type;
 } keywords[] = {
@@ -94,7 +91,7 @@ static struct {
   {"return", TK_RETURN},
 };
 
-static const char* TokenNames[] = {
+static const char const * TokenNames[] = {
   "TK_NONE",
   "TK_ERROR",
   "TK_NEWLINE",
@@ -132,11 +129,6 @@ struct Token{
   char* content;
 };
 
-struct TokenList{
-  Token value;
-  TokenList *next;
-};
-
 char ls_current(const LexerState *ls){
   //printf("current is %d: %c\n", ls->pos, ls->src[ls->pos]);
   return ls->src[ls->pos];
@@ -162,39 +154,18 @@ char ls_consume_exclude(LexerState *ls, const char* chars){
   return 0;
 }
 
+
 void ls_initialize(LexerState* ls, const char* src){
   ls->src = src;
   ls->pos = 0;
   ls->indentations = push(0, 0);
   ls->open_parens = 0;
-  ls->tok_head = 0;
-  ls->tok_tail = 0;
   ls->state = ST_BEGIN_OF_LINE;
 }
 
 
-void ls_emit_token(LexerState *ls, Token tok){
-  if (tok.type == TK_NONE) return;
-  
-  TokenList *node = malloc(sizeof(TokenList));
-  node->value = tok;
-  node->next = 0;
-  if (!ls->tok_head){
-    ls->tok_head = node;
-    ls->tok_tail = node;
-  }
-  else{
-    ls->tok_tail->next = node;
-    ls->tok_tail = node;
-  }
-}
-
 Token simple_token(LexerState *ls, TokenType toktyp){
   return (Token){.type = toktyp, .pos = ls->pos, .content = 0};
-}
-  
-void ls_emit_simple(LexerState *ls, TokenType toktyp){
-  ls_emit_token(ls, simple_token(ls, toktyp));
 }
 
 
@@ -379,12 +350,7 @@ Token get_token(LexerState *ls){
   return simple_token(ls, TK_EOF);
 }
 
-void lexer(LexerState *ls){
-  while (ls_current(ls)){
-    ls_emit_token(ls, get_token(ls));
-  }
-}
-		  
+
 const char* read(char* filename){
   FILE * f = fopen (filename, "rb");
 
@@ -419,12 +385,10 @@ int main(int argc, char** argv){
     
     LexerState ls;
     ls_initialize(&ls, src);
-    //lexer(&ls);
 
-    //TokenList *tl = ls.tok_head;
-   
+    Token tok;
     do{
-      Token tok=get_token;
+      tok = get_token(&ls);
       if (tok.content) {
       printf("Token{type = %s, pos = %d, content = \"%s\"}\n",
 	     TokenNames[tok.type], tok.pos, tok.content);
@@ -433,7 +397,6 @@ int main(int argc, char** argv){
       printf("Token{type = %s, pos = %d}\n",
 	     TokenNames[tok.type], tok.pos);
       }
-      tl = tl->next;
     } while(tok.type != TK_EOF);
   }
   return EXIT_SUCCESS;
