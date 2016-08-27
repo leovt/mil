@@ -419,21 +419,22 @@ int main(int argc, char** argv){
     
     LexerState ls;
     ls_initialize(&ls, src);
-    lexer(&ls);
+    //lexer(&ls);
 
-    TokenList *tl = ls.tok_head;
-    while(tl){
-      Token* tok=&(tl->value);
-      if (tok->content) {
+    //TokenList *tl = ls.tok_head;
+   
+    do{
+      Token tok=get_token;
+      if (tok.content) {
       printf("Token{type = %s, pos = %d, content = \"%s\"}\n",
-	     TokenNames[tok->type], tok->pos, tok->content);
+	     TokenNames[tok.type], tok.pos, tok.content);
       }
       else{
       printf("Token{type = %s, pos = %d}\n",
-	     TokenNames[tok->type], tok->pos);
+	     TokenNames[tok.type], tok.pos);
       }
       tl = tl->next;
-    }
+    } while(tok.type != TK_EOF);
   }
   return EXIT_SUCCESS;
   
