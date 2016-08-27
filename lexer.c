@@ -196,38 +196,6 @@ void ls_emit_simple(LexerState *ls, TokenType toktyp){
 }
 
 
-void begin_of_line(LexerState *ls){
-  ls->indent = 0;
-  while(ls_consume(ls, " ")){
-    ls->indent += 1;
-  }
-  if (ls_consume(ls, "\n")){
-    return;
-  }
-  if (ls->indent > ls->indentations->value){
-    ls->indentations = push(ls->indentations, ls->indent);
-    ls_emit_simple(ls, TK_INDENT);
-    ls->state = ST_MAIN_LINE;
-  }
-  else if (ls->indent < ls->indentations->value){
-    ls->state = ST_HANDLE_DEDENT;
-  }
-  else {
-    ls->state = ST_MAIN_LINE;
-  }
-}
-
-void handle_dedent(LexerState *ls){
-  ls->indentations = pop(ls->indentations);
-  ls_emit_simple(ls, TK_DEDENT);
-  if (ls->indent == ls->indentations->value) {
-    ls->state = ST_MAIN_LINE;    
-  }
-  else if (ls->indent > ls->indentations->value){
-    ls_emit_simple(ls, TK_ERROR);
-  }
-}
-
 Token comment(LexerState *ls){
   int start = ls->pos;
   int length = 0;
@@ -369,10 +337,34 @@ void lexer(LexerState *ls){
   while (ls_current(ls)){
     switch(ls->state){
     case ST_BEGIN_OF_LINE:
-      begin_of_line(ls);
+      ls->indent = 0;
+      while(ls_consume(ls, " ")){
+	ls->indent += 1;
+      }
+      if (ls_consume(ls, "\n")){
+	break;
+      }
+      if (ls->indent > ls->indentations->value){
+	ls->indentations = push(ls->indentations, ls->indent);
+	ls_emit_simple(ls, TK_INDENT);
+	ls->state = ST_MAIN_LINE;
+      }
+      else if (ls->indent < ls->indentations->value){
+	ls->state = ST_HANDLE_DEDENT;
+      }
+      else {
+	ls->state = ST_MAIN_LINE;
+      }
       break;
     case ST_HANDLE_DEDENT:
-      handle_dedent(ls);
+      ls->indentations = pop(ls->indentations);
+      ls_emit_simple(ls, TK_DEDENT);
+      if (ls->indent == ls->indentations->value) {
+	ls->state = ST_MAIN_LINE;    
+      }
+      else if (ls->indent > ls->indentations->value){
+	ls_emit_simple(ls, TK_ERROR);
+      }
       break;
     case ST_MAIN_LINE:
       ls_emit_token(ls, main_line(ls));
