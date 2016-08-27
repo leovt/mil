@@ -45,10 +45,6 @@ struct LexerState{
     ST_BEGIN_OF_LINE,
     ST_HANDLE_DEDENT,
     ST_MAIN_LINE,
-    ST_IDENTIFIER,
-    ST_NUMBER,
-    ST_COMMENT,
-    ST_STRING
   } state;
 };
 
@@ -232,10 +228,18 @@ void handle_dedent(LexerState *ls){
   }
 }
 
-void comment(LexerState *ls){
-  while(ls_consume_exclude(ls, "\n")){};
+Token comment(LexerState *ls){
+  int start = ls->pos;
+  int length = 0;
+  while(ls_consume_exclude(ls, "\n")){
+    length += 1;
+  };
   ls_consume(ls, "\n");
+  Token tok = {TK_COMMENT, start, malloc(length+1)};
+  memcpy(tok.content, ls->src+start, length);
+  tok.content[length] = 0;
   ls->state = ST_BEGIN_OF_LINE;
+  return tok;
 }
 
 Token string(LexerState *ls){
@@ -252,6 +256,7 @@ Token string(LexerState *ls){
   ls->state = ST_MAIN_LINE;
   return tok;
 }
+
 Token identifier(LexerState *ls){
   Token tok = {TK_IDENTIFIER, ls->pos, 0};
   unsigned length = 0;
@@ -301,8 +306,7 @@ Token main_line(LexerState *ls){
       ls->pos += 1;
       break;
     case '#':
-      ls->state = ST_COMMENT;
-      return simple_token(ls, TK_NONE);
+      return comment(ls);
     case '\"':
       return string(ls);
     case '+':
@@ -372,18 +376,6 @@ void lexer(LexerState *ls){
       break;
     case ST_MAIN_LINE:
       ls_emit_token(ls, main_line(ls));
-      break;
-    case ST_IDENTIFIER:
-      ls_emit_token(ls, identifier(ls));
-      break;
-    case ST_NUMBER:
-      ls_emit_token(ls, number(ls));
-      break;
-    case ST_COMMENT:
-      comment(ls);
-      break;
-    case ST_STRING:
-      ls_emit_token(ls, string(ls));
       break;
     default:
       exit(EXIT_FAILURE);
