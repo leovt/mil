@@ -76,7 +76,8 @@ typedef enum TokenType {
   TK_COLON,
   TK_DOT,
   TK_LPAREN,
-  TK_RPAREN
+  TK_RPAREN,
+  TK_EOF,
 } TokenType;
 
 static struct {
@@ -121,7 +122,8 @@ static const char* TokenNames[] = {
   "TK_COLON",
   "TK_PERIOD",
   "TK_LPAREN",
-  "TK_RPAREN"
+  "TK_RPAREN",
+  "TK_EOF",
 };
 
 struct Token{
@@ -333,7 +335,8 @@ Token main_line(LexerState *ls){
   }
 }
 
-void lexer(LexerState *ls){
+
+Token get_token(LexerState *ls){
   while (ls_current(ls)){
     switch(ls->state){
     case ST_BEGIN_OF_LINE:
@@ -346,11 +349,12 @@ void lexer(LexerState *ls){
       }
       if (ls->indent > ls->indentations->value){
 	ls->indentations = push(ls->indentations, ls->indent);
-	ls_emit_simple(ls, TK_INDENT);
 	ls->state = ST_MAIN_LINE;
+	return simple_token(ls, TK_INDENT);
       }
-      else if (ls->indent < ls->indentations->value){
+      if (ls->indent < ls->indentations->value){
 	ls->state = ST_HANDLE_DEDENT;
+	break;
       }
       else {
 	ls->state = ST_MAIN_LINE;
@@ -358,23 +362,29 @@ void lexer(LexerState *ls){
       break;
     case ST_HANDLE_DEDENT:
       ls->indentations = pop(ls->indentations);
-      ls_emit_simple(ls, TK_DEDENT);
       if (ls->indent == ls->indentations->value) {
 	ls->state = ST_MAIN_LINE;    
+	return simple_token(ls, TK_DEDENT);
       }
       else if (ls->indent > ls->indentations->value){
-	ls_emit_simple(ls, TK_ERROR);
+	return simple_token(ls, TK_ERROR);
       }
       break;
     case ST_MAIN_LINE:
-      ls_emit_token(ls, main_line(ls));
-      break;
+      return main_line(ls);
     default:
       exit(EXIT_FAILURE);
     }
   }
+  return simple_token(ls, TK_EOF);
 }
 
+void lexer(LexerState *ls){
+  while (ls_current(ls)){
+    ls_emit_token(ls, get_token(ls));
+  }
+}
+		  
 const char* read(char* filename){
   FILE * f = fopen (filename, "rb");
 
