@@ -3,39 +3,18 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <assert.h>
 
-typedef struct IntList IntList;
 typedef struct LexerState LexerState;
 typedef struct Token Token;
 
-struct IntList{
-  int value;
-  IntList *next;
-};
-
-IntList* push(IntList* stack, int value){
-  IntList *top = malloc(sizeof(IntList));
-  if (!top) {
-    exit(EXIT_FAILURE);
-  }
-  top->value = value;
-  top->next = stack;
-  return top;
-}
-
-IntList* pop(IntList* stack){
-  if (!stack){
-    exit(EXIT_FAILURE);
-  }
-  IntList* next = stack->next;
-  free(stack);
-  return next;
-}
+#define MAX_INDENT_LEVELS 20
 
 struct LexerState{
   const char* src;
   int pos;
-  IntList *indentations;
+  int indentations[MAX_INDENT_LEVELS];
+  int top_indent;
   int indent;
   int open_parens;
   enum {
@@ -158,7 +137,8 @@ char ls_consume_exclude(LexerState *ls, const char* chars){
 void ls_initialize(LexerState* ls, const char* src){
   ls->src = src;
   ls->pos = 0;
-  ls->indentations = push(0, 0);
+  ls->indentations[0] = 0;
+  ls->top_indent = 0;
   ls->open_parens = 0;
   ls->state = ST_BEGIN_OF_LINE;
 }
@@ -318,12 +298,16 @@ Token get_token(LexerState *ls){
       if (ls_consume(ls, "\n")){
 	break;
       }
-      if (ls->indent > ls->indentations->value){
-	ls->indentations = push(ls->indentations, ls->indent);
+      if (ls->indent > ls->indentations[ls->top_indent]){
+	if (ls->top_indent >= MAX_INDENT_LEVELS-1){
+	  return simple_token(ls, TK_ERROR);
+	}
+	ls->top_indent += 1;
+	ls->indentations[ls->top_indent] = ls->indent;
 	ls->state = ST_MAIN_LINE;
 	return simple_token(ls, TK_INDENT);
       }
-      if (ls->indent < ls->indentations->value){
+      if (ls->indent < ls->indentations[ls->top_indent]){
 	ls->state = ST_HANDLE_DEDENT;
 	break;
       }
@@ -332,12 +316,12 @@ Token get_token(LexerState *ls){
       }
       break;
     case ST_HANDLE_DEDENT:
-      ls->indentations = pop(ls->indentations);
-      if (ls->indent == ls->indentations->value) {
+      ls->top_indent -= 1;
+      if (ls->indent == ls->indentations[ls->top_indent]) {
 	ls->state = ST_MAIN_LINE;    
 	return simple_token(ls, TK_DEDENT);
       }
-      else if (ls->indent > ls->indentations->value){
+      else if (ls->indent > ls->indentations[ls->top_indent]){
 	return simple_token(ls, TK_ERROR);
       }
       break;
