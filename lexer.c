@@ -1,3 +1,6 @@
+#ifndef LEXER_H
+#define LEXER_H
+
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,8 +8,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-typedef struct LexerState LexerState;
-typedef struct Token Token;
+#include "lexer.h"
 
 #define MAX_INDENT_LEVELS 20
 
@@ -24,37 +26,6 @@ struct LexerState{
   } state;
 };
 
-typedef enum TokenType {
-  TK_NONE,
-  TK_ERROR,
-  TK_NEWLINE,
-  TK_INDENT,
-  TK_DEDENT,
-  TK_NUMBER,
-  TK_COMMENT,
-  TK_STRING,
-  TK_IDENTIFIER,
-  TK_DEF,
-  TK_LOOP,
-  TK_BREAK,
-  TK_CONTINUE,
-  TK_IF,
-  TK_ELIF,
-  TK_ELSE,
-  TK_RETURN,
-  TK_PLUS,
-  TK_MINUS,
-  TK_TIMES,
-  TK_DIV,
-  TK_MOD,
-  TK_ASSIGN,
-  TK_EQUAL,
-  TK_COLON,
-  TK_DOT,
-  TK_LPAREN,
-  TK_RPAREN,
-  TK_EOF,
-} TokenType;
 
 static const struct {
   char word[10];
@@ -70,7 +41,7 @@ static const struct {
   {"return", TK_RETURN},
 };
 
-static const char const * TokenNames[] = {
+const char const * TokenNames[] = {
   "TK_NONE",
   "TK_ERROR",
   "TK_NEWLINE",
@@ -102,18 +73,12 @@ static const char const * TokenNames[] = {
   "TK_EOF",
 };
 
-struct Token{
-  TokenType type;
-  int pos;
-  char* content;
-};
-
-char ls_current(const LexerState *ls){
+static char ls_current(const LexerState *ls){
   //printf("current is %d: %c\n", ls->pos, ls->src[ls->pos]);
   return ls->src[ls->pos];
 }
 
-char ls_consume(LexerState *ls, const char* chars){
+static char ls_consume(LexerState *ls, const char* chars){
   char cur = ls_current(ls);
   if (strchr(chars, cur)){
     /* TODO: logic for tracking current line/column */
@@ -123,7 +88,7 @@ char ls_consume(LexerState *ls, const char* chars){
   return 0;
 }
 
-char ls_consume_exclude(LexerState *ls, const char* chars){
+static char ls_consume_exclude(LexerState *ls, const char* chars){
   char cur = ls_current(ls);
   if (!strchr(chars, cur)){
     /* TODO: logic for tracking current line/column */
@@ -134,22 +99,28 @@ char ls_consume_exclude(LexerState *ls, const char* chars){
 }
 
 
-void ls_initialize(LexerState* ls, const char* src){
+LexerState* lexer_initialize(const char* src){
+  LexerState* ls = malloc(sizeof(LexerState)); 
   ls->src = src;
   ls->pos = 0;
   ls->indentations[0] = 0;
   ls->top_indent = 0;
   ls->open_parens = 0;
   ls->state = ST_BEGIN_OF_LINE;
+  return ls;
+}
+
+void lexer_close(LexerState* ls){
+  free(ls);
 }
 
 
-Token simple_token(LexerState *ls, TokenType toktyp){
+static Token simple_token(LexerState *ls, TokenType toktyp){
   return (Token){.type = toktyp, .pos = ls->pos, .content = 0};
 }
 
 
-Token comment(LexerState *ls){
+static Token comment(LexerState *ls){
   int start = ls->pos;
   int length = 0;
   while(ls_consume_exclude(ls, "\n")){
@@ -163,7 +134,7 @@ Token comment(LexerState *ls){
   return tok;
 }
 
-Token string(LexerState *ls){
+static Token string(LexerState *ls){
   int start = ls->pos;
   int length = 0;
   ls_consume(ls, "\"");
@@ -178,7 +149,7 @@ Token string(LexerState *ls){
   return tok;
 }
 
-Token identifier(LexerState *ls){
+static Token identifier(LexerState *ls){
   Token tok = {TK_IDENTIFIER, ls->pos, 0};
   unsigned length = 0;
   while(isalnum(ls->src[ls->pos]) || ls->src[ls->pos] == '_'){
@@ -205,7 +176,7 @@ Token identifier(LexerState *ls){
   return tok;
 }
 
-Token number(LexerState *ls){
+static Token number(LexerState *ls){
   int start = ls->pos;
   int length = 0;
   while(isdigit(ls->src[ls->pos])){
@@ -219,7 +190,7 @@ Token number(LexerState *ls){
   return tok;
 }
 
-Token main_line(LexerState *ls){
+static Token main_line(LexerState *ls){
   for(;;){
     char cur = ls_current(ls);
     switch(cur){
@@ -335,55 +306,4 @@ Token get_token(LexerState *ls){
 }
 
 
-const char* read(char* filename){
-  FILE * f = fopen (filename, "rb");
-
-  if (!f)
-    exit(EXIT_FAILURE);
-
-  int length;
-  fseek(f, 0, SEEK_END);
-  length = ftell(f);
-  fseek(f, 0, SEEK_SET);
-  char* buffer = malloc(length);
-  if (!buffer)
-    exit(EXIT_FAILURE);
-  int length_read = fread(buffer, 1, length, f);
-  if (length_read != length)
-    exit(EXIT_FAILURE);
-  fclose(f);
-  return buffer;
-}
-
-#ifdef LEXER_MAIN
-int main(int argc, char** argv){
-  if(argc != 2){
-    if(argc){
-      printf("Usage: %s filename\n", argv[0]);
-    }else{
-      printf("Usage: need one filename argument\n");
-    }
-  }else{
-   
-    const char* src = read(argv[1]);
-    
-    LexerState ls;
-    ls_initialize(&ls, src);
-
-    Token tok;
-    do{
-      tok = get_token(&ls);
-      if (tok.content) {
-      printf("Token{type = %s, pos = %d, content = \"%s\"}\n",
-	     TokenNames[tok.type], tok.pos, tok.content);
-      }
-      else{
-      printf("Token{type = %s, pos = %d}\n",
-	     TokenNames[tok.type], tok.pos);
-      }
-    } while(tok.type != TK_EOF);
-  }
-  return EXIT_SUCCESS;
-  
-}
 #endif
