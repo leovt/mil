@@ -32,6 +32,7 @@ typedef enum TokenType {
   TK_LPAREN,
   TK_RPAREN,
   TK_EOF,
+  TK_LIST,
 } TokenType;
 
 

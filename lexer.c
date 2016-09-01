@@ -71,6 +71,7 @@ const char const * TokenNames[] = {
   "TK_LPAREN",
   "TK_RPAREN",
   "TK_EOF",
+  "TK_LIST",
 };
 
 static char ls_current(const LexerState *ls){
@@ -301,6 +302,10 @@ Token get_token(LexerState *ls){
     default:
       exit(EXIT_FAILURE);
     }
+  }
+  if(ls->top_indent){
+    ls->top_indent -= 1;
+    return simple_token(ls, TK_DEDENT);
   }
   return simple_token(ls, TK_EOF);
 }
