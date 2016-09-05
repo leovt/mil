@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "lexer.h"
 
@@ -14,6 +15,32 @@ struct Node{
 static const Token LIST={TK_LIST,0,0};
 static const Token ERROR={TK_ERROR,0,0};
 
+static int prec[] = {
+	[TK_ASSIGN] = 10,
+	[TK_EQUAL] = 20,
+	[TK_PLUS] = 30,
+	[TK_MINUS] = 30,
+	[TK_TIMES] = 40,
+	[TK_MOD] = 40};
+
+static bool left_assoc[TK_LIST] = {
+	[TK_ASSIGN] = true,
+	[TK_EQUAL] = true,
+	[TK_PLUS] = true,
+	[TK_MINUS] = true,
+	[TK_TIMES] = true,
+	[TK_MOD] = true};
+
+inline
+static bool must_pop_op(TokenType cur, TokenType tos){
+	if (left_assoc[cur]) {
+		return prec[cur] <= prec[tos];
+	}
+	else{
+		return prec[cur] < prec[tos];
+	}
+}
+	
 typedef Node *AST;
 
 typedef struct ParserState{
@@ -58,6 +85,133 @@ ParserState* initialize(const char* src){
   return ps;
 }
 
+AST expression(ParserState* ps){
+	AST expr_stack[100];
+	int expr_stack_free = 0;
+	Token op_stack[100];
+	int op_stack_free = 0;
+	
+	bool prefix = true;
+	while (ps->current.type != TK_COLON &&
+		   ps->current.type != TK_NEWLINE &&
+		   ps->current.type != TK_EOF) {
+			   
+		if (ps->current.type == TK_NUMBER ||
+			ps->current.type == TK_IDENTIFIER || 
+			ps->current.type == TK_STRING) {
+			
+			if (expr_stack_free+1 > 100)
+				exit(EXIT_FAILURE);
+			expr_stack[expr_stack_free] = make_node(ps->current);
+			expr_stack_free += 1;
+			prefix = false;
+		}
+		else if (ps->current.type == TK_PLUS ||
+				 ps->current.type == TK_MINUS ||
+				 ps->current.type == TK_MOD ||
+				 ps->current.type == TK_TIMES ||
+				 ps->current.type == TK_EQUAL ||
+				 ps->current.type == TK_ASSIGN){
+			while(op_stack_free && 
+				  must_pop_op(ps->current.type, op_stack[op_stack_free].type)){
+					  
+				if (expr_stack_free < 2)
+					exit(EXIT_FAILURE);
+				expr_stack_free -= 2;
+				AST rhs = expr_stack[expr_stack_free+1];
+				AST lhs = expr_stack[expr_stack_free];
+				if (op_stack_free < 1)
+					exit(EXIT_FAILURE);
+				op_stack_free -= 1;
+				Token op = op_stack[op_stack_free];
+				AST node = make_node(op);
+				node->child = lhs;
+				lhs->sibling = rhs;
+				expr_stack[expr_stack_free] = node;
+				expr_stack_free += 1;
+			};
+			if (op_stack_free+1 > 100)
+				exit(EXIT_FAILURE);
+			op_stack[op_stack_free] = ps->current;
+			op_stack_free += 1;
+			prefix = true;
+		}
+		else if (ps->current.type == TK_LPAREN) {
+			if (prefix) {
+				/* grouped expression */
+				exit(EXIT_FAILURE);
+			}
+			else {
+				if (op_stack_free+1 > 100)
+					exit(EXIT_FAILURE);
+				op_stack[op_stack_free] = ps->current;
+				op_stack_free += 1;
+			}
+		}
+		else if (ps->current.type == TK_RPAREN) {
+			while (op_stack_free > 0 && op_stack[op_stack_free-1].type != TK_LPAREN) {
+				if (expr_stack_free < 2)
+					exit(EXIT_FAILURE);
+				expr_stack_free -= 2;
+				AST rhs = expr_stack[expr_stack_free+1];
+				AST lhs = expr_stack[expr_stack_free];
+				if (op_stack_free < 1)
+					exit(EXIT_FAILURE);
+				op_stack_free -= 1;
+				Token op = op_stack[op_stack_free];
+				AST node = make_node(op);
+				node->child = lhs;
+				lhs->sibling = rhs;
+				expr_stack[expr_stack_free] = node;
+				expr_stack_free += 1;						
+			}
+			if (op_stack_free <= 0 || op_stack[op_stack_free-1].type != TK_LPAREN){
+				exit(EXIT_FAILURE);
+			}
+			if (expr_stack_free < 2)
+				exit(EXIT_FAILURE);
+			expr_stack_free -= 2;
+			AST rhs = expr_stack[expr_stack_free+1];
+			AST lhs = expr_stack[expr_stack_free];
+			if (op_stack_free < 1)
+				exit(EXIT_FAILURE);
+			op_stack_free -= 1;
+			Token op = op_stack[op_stack_free];
+			AST node = make_node(op);
+			node->child = lhs;
+			lhs->sibling = rhs;
+			expr_stack[expr_stack_free] = node;
+			expr_stack_free += 1;						
+		}
+		else {
+			fprintf(stderr, "expected expression, got %s\n", TokenNames[ps->current.type]);
+		}
+		(void) prefix;
+		consume(ps, ps->current.type, "");
+	};
+	
+	while (op_stack_free > 0) {
+		if (expr_stack_free < 2)
+			exit(EXIT_FAILURE);
+		expr_stack_free -= 2;
+		AST rhs = expr_stack[expr_stack_free+1];
+		AST lhs = expr_stack[expr_stack_free];
+		if (op_stack_free < 1)
+			exit(EXIT_FAILURE);
+		op_stack_free -= 1;
+		Token op = op_stack[op_stack_free];
+		AST node = make_node(op);
+		node->child = lhs;
+		lhs->sibling = rhs;
+		expr_stack[expr_stack_free] = node;
+		expr_stack_free += 1;		
+	}
+	if (expr_stack_free != 1) {
+		fprintf(stderr, "malformed expression\n");
+	}
+	return expr_stack[0];
+}
+
 AST block(ParserState*);
 
 AST function_definition(ParserState* ps){
@@ -85,9 +239,7 @@ AST function_definition(ParserState* ps){
 
 AST conditional(ParserState* ps){
   Token tok = consume(ps, TK_IF, "if statement");
-  AST cond=make_node(ERROR);
-  while (ps->current.type != TK_COLON)
-    consume(ps, ps->current.type, 0);
+  AST cond=expression(ps);
   consume(ps, TK_COLON, "if statement");
   consume(ps, TK_NEWLINE, "if statement");
   consume(ps, TK_INDENT, "if statement");
@@ -118,9 +270,7 @@ AST loop_stmt(ParserState* ps){
 
 AST return_stmt(ParserState* ps){
   Token ret = consume(ps, TK_RETURN, "return statement");
-  AST expr = make_node(ERROR);
-  while (ps->current.type != TK_NEWLINE)
-    consume(ps, ps->current.type, 0);
+  AST expr = expression(ps);
   consume(ps, TK_NEWLINE, "return statement");
 
   AST return_stmt = make_node(ret);
@@ -129,9 +279,7 @@ AST return_stmt(ParserState* ps){
 }
 
 AST expression_stmt(ParserState* ps){
-  AST expr = make_node(ERROR);
-  while (ps->current.type != TK_NEWLINE)
-    consume(ps, ps->current.type, 0);
+  AST expr = expression(ps);
   consume(ps, TK_NEWLINE, "expression or assignment statement");
 
   return expr;
