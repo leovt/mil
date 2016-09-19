@@ -80,6 +80,11 @@ bool ob_eq(Object* a, Object* b){
 		return false;
 	}
 	
+	if (a->type->equal)
+	{
+		return (*a->type->equal)(a,b);
+	}
+	
 	return memcmp(a->data, b->data, a->type->size) == 0;
 }
 
@@ -94,8 +99,6 @@ int co_const_idx(Code* code, Object* obj){
 	code->constants[code->nb_const-1] = obj;
 	return code->nb_const-1;
 }
-
-
 
 
 
